@@ -1,101 +1,79 @@
 const express = require('express');
+const { GoogleGenAI } = require('@google/genai');
+const path = require('path');
+
 const app = express();
 const PORT = 3000;
-const path = require('path'); 
+
+// Initialize the Google Gen AI SDK
+// Ensure you have set the GEMINI_API_KEY environment variable
+const ai = new GoogleGenAI({});
 
 app.use(express.json());
-
 app.use(express.static(path.join(__dirname, 'public')));
-
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-function getBotResponse(msg) {
-    msg = msg.toLowerCase();
-
-    if (msg.includes('hello') || msg.includes('hi') || msg.includes('hey')) {
-        return "Hey there! How can I help you today?";
-    }
-
-    if (msg.includes('how are you')) {
-        return "Doing good, just running on a node server somewhere. What's up?";
-    }
-
-    if (msg.includes('bye') || msg.includes('goodbye')) {
-        return "See ya, take care!";
-    }
-
-    if (msg.includes('help')) {
-        return "I'm a pretty basic bot for now, try greeting me or asking how I'm doing.";
-    }
-
-    if (msg.includes('name')) {
-        return "I'm Noob bot, nice to meet you.";
-    }
-
-    if (msg.includes('thank')) {
-        return "No problem!";
-    }
-
-    if (msg.includes('weather')) {
-        return "I can't check the weather yet, sorry. Maybe in a future update.";
-    }
-
-    if (msg.includes('joke')) {
-        return "Why do programmers prefer dark mode? Because light attracts bugs.";
-    }
-
-    if (msg.includes('time')) {
-        return `Server time right now is ${new Date().toLocaleTimeString()}.`;
-    }
-
-    if (msg.includes('date')) {
-        return `Today's date is ${new Date().toLocaleDateString()}.`;
-    }
-
-    if (msg.includes('age') || msg.includes('old')) {
-        return "I don't really have an age, I'm just some code that runs when you send a message.";
-    }
-
-    if (msg.includes('who made you') || msg.includes('creator')) {
-        return "I was built by Vivek Kumar using Node.js and Express.js.";
-    }
-
-    if (msg.includes('love')) {
-        return "Aw, that's sweet. But I'm just a bot, remember?";
-    }
-
-    if (msg.includes('bored')) {
-        return "Try asking me for a joke, that might help.";
-    }
-
-    if (msg.includes('sad')) {
-        return "Sorry to hear that. Hope things get better soon.";
-    }
-
-    return "Hmm, not sure what you mean by that. Can you rephrase?";
-}
-
-app.post('/api/chat', (req, res) => {
+// The old keyword bot logic is completely replaced by AI
+app.post('/api/chat', async (req, res) => {
     const userMessage = req.body.message;
 
     if (!userMessage) {
         return res.status(400).json({ error: "Message is required" });
     }
 
-    const reply = getBotResponse(userMessage);
+    try {
+        // 1. Set headers for Server-Sent Events (SSE) to stream data
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
 
-    // small delay so it doesn't feel instant/robotic
-    setTimeout(() => {
-        res.json({ reply });
-    }, 800);
+        // 2. Call the AI model and request a stream
+        const responseStream = await ai.models.generateContentStream({
+            model: 'gemini-2.5-flash',
+            contents: userMessage,
+            config: {
+                systemInstruction: `You are a helpful, conversational AI assistant named Noob bot. 
+                You were built by Vivek Kumar using Node.js and Express.js. 
+                
+            RULES:
+                1. Talk like a real, casual person. Use conversational language.
+                2. Keep your answers brief and to the point. 
+                3. DO NOT write code, scripts, or technical tutorials. If asked for code, politely explain that you only chat.
+                4. Do not use complex formatting or long lists.`,
+            }
+        });
+
+        // 3. Stream each chunk of text to the client as it generates
+        for await (const chunk of responseStream) {
+            if (chunk.text) {
+                res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+            }
+        }
+
+        // 4. Close the connection when the AI finishes
+        res.write('data: [DONE]\n\n');
+        res.end();
+
+    } catch (error) {
+        console.error('Error generating AI response:', error);
+
+        // Handle errors gracefully depending on whether streaming started
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Failed to generate response" });
+        } else {
+            res.write(`data: ${JSON.stringify({ error: "Generation interrupted" })}\n\n`);
+            res.end();
+        }
+    }
 });
 
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`Ensure your GEMINI_API_KEY environment variable is set.`);
     });
 }
 
