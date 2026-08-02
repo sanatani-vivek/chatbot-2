@@ -36,7 +36,7 @@ app.post('/api/chat', async (req, res) => {
 // ...
             contents: userMessage,
             config: {
-                systemInstruction: `You are a helpful, conversational AI assistant named Noob bot. 
+                systemInstruction: `You are a helpful, conversational AI assistant named Nova bot. 
                 You were built by Vivek Kumar using Node.js and Express.js. 
                 
             RULES:
