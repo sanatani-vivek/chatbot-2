@@ -36,7 +36,7 @@ userInput.addEventListener('keypress', (e) => {
 
 sendBtn.addEventListener('click', sendMessage);
 
-function addMessage(sender, text) {
+function addMessage(sender, text = '') {
     const wrapper = document.createElement('div');
     wrapper.classList.add('message-wrapper', sender);
 
@@ -52,6 +52,8 @@ function addMessage(sender, text) {
     wrapper.appendChild(bubble);
     chatBox.appendChild(wrapper);
     chatBox.scrollTop = chatBox.scrollHeight;
+
+    return bubble;
 }
 
 function showTyping() {
@@ -97,10 +99,51 @@ async function sendMessage() {
 
         if (!response.ok) throw new Error('Network response failure');
 
-        const data = await response.json();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let botBubble = null;
 
-        hideTyping();
-        addMessage('bot', data.reply);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            
+            // Retain incomplete line in buffer for next chunk
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+
+                if (trimmed.startsWith('data: ')) {
+                    const dataStr = trimmed.slice(6);
+                    if (dataStr === '[DONE]') break;
+
+                    try {
+                        const parsed = JSON.parse(dataStr);
+                        if (parsed.text) {
+                            // Create the bot bubble on the first incoming text chunk
+                            if (!botBubble) {
+                                hideTyping();
+                                botBubble = addMessage('bot', '');
+                            }
+                            botBubble.innerText += parsed.text;
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
+                    } catch (parseErr) {
+                        console.error('SSE JSON parse error:', parseErr, dataStr);
+                    }
+                }
+            }
+        }
+
+        if (!botBubble) {
+            hideTyping();
+            addMessage('bot', 'No response received.');
+        }
+
     } catch (err) {
         hideTyping();
         console.error(err);
