@@ -32,7 +32,7 @@ app.post('/api/chat', async (req, res) => {
 
         // 2. Call the AI model and request a stream
             const responseStream = await ai.models.generateContentStream({
-                    model: 'gemini-3.6-flash', 
+                    model: 'gemini-2.0-flash', 
 // ...
             contents: userMessage,
             config: {
