@@ -31,8 +31,9 @@ app.post('/api/chat', async (req, res) => {
         res.setHeader('Connection', 'keep-alive');
 
         // 2. Call the AI model and request a stream
-        const responseStream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash',
+            const responseStream = await ai.models.generateContentStream({
+                    model: 'gemini-3.6-flash', 
+// ...
             contents: userMessage,
             config: {
                 systemInstruction: `You are a helpful, conversational AI assistant named Noob bot. 
